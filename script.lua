@@ -1,4 +1,4 @@
--- ==================== UNIVERSAL SUPER-HUB v2.0 (WindUI Loader Fixed) ====================
+-- ==================== UNIVERSAL SUPER-HUB v3.0 ====================
 -- by Flor1x :)
 
 local function FetchWindUI()
@@ -25,7 +25,7 @@ end
 local WindUI = FetchWindUI()
 
 if not WindUI then
-    warn("[Super-Hub Error]: Не удалось загрузить WindUI! Проверь подключение к интернету или включи VPN.")
+    warn("[Super-Hub Error]: Не удалось загрузить WindUI!")
     return
 end
 
@@ -38,14 +38,16 @@ local TextChatService = game:GetService("TextChatService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 local Window = WindUI:CreateWindow({
-    Title = "UNIVERSAL SUPER-HUB | v2.0",
+    Title = "UNIVERSAL SUPER-HUB | v3.0",
     Icon = "rbxassetid://4483362458",
     Author = "by Flor1x",
     Folder = "UniversalSuperHub",
-    Size = UDim2.fromOffset(580, 460),
+    Size = UDim2.fromOffset(600, 480),
     Transparent = true,
     Theme = "Dark",
     SideBarWidth = 200,
@@ -53,19 +55,14 @@ local Window = WindUI:CreateWindow({
 })
 
 -- ==================== 1. MOVEMENT & PHYSICS ====================
-local MoveTab = Window:Tab({
-    Title = "Movement",
-    Icon = "footprints"
-})
+local MoveTab = Window:Tab({ Title = "Movement", Icon = "footprints" })
 
 _G.UnsafeSpeed = 16
 MoveTab:Slider({
     Title = "Speed (WalkSpeed)",
     Desc = "Range from 0 to 1000",
     Value = { Min = 0, Max = 1000, Default = 16 },
-    Callback = function(v)
-        _G.UnsafeSpeed = typeof(v) == "table" and v.Value or v
-    end
+    Callback = function(v) _G.UnsafeSpeed = typeof(v) == "table" and v.Value or v end
 })
 
 RunService.RenderStepped:Connect(function()
@@ -74,12 +71,47 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+_G.CustomJumpPower = 50
+MoveTab:Slider({
+    Title = "Jump Height (JumpPower)",
+    Desc = "Default Roblox Jump Power is 50",
+    Value = { Min = 50, Max = 500, Default = 50 },
+    Callback = function(v) _G.CustomJumpPower = typeof(v) == "table" and v.Value or v end
+})
+
+RunService.RenderStepped:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        hum.UseJumpPower = true
+        hum.JumpPower = _G.CustomJumpPower
+    end
+end)
+
+_G.CustomGravity = 196.2
+MoveTab:Slider({
+    Title = "Gravity Control",
+    Desc = "Default: 196.2",
+    Value = { Min = 0, Max = 1000, Default = 196.2 },
+    Callback = function(v)
+        local gravityVal = typeof(v) == "table" and v.Value or v
+        _G.CustomGravity = gravityVal
+        workspace.Gravity = gravityVal
+    end
+})
+
+MoveTab:Button({
+    Title = "Reset Gravity",
+    Callback = function()
+        _G.CustomGravity = 196.2
+        workspace.Gravity = 196.2
+        WindUI:Notify({ Title = "Gravity Reset!", Content = "Gravity restored to 196.2 :)", Duration = 3 })
+    end
+})
+
 _G.WASDFly = false
 _G.WASDFlySpeed = 50
-
 MoveTab:Toggle({
     Title = "Fly (WASD)",
-    Desc = "Fly in camera direction using movement keys",
     Value = false,
     Callback = function(v)
         _G.WASDFly = v
@@ -111,17 +143,13 @@ MoveTab:Toggle({
 
 MoveTab:Slider({
     Title = "Fly Speed",
-    Desc = "Adjust flying velocity",
     Value = { Min = 10, Max = 300, Default = 50 },
-    Callback = function(v)
-        _G.WASDFlySpeed = typeof(v) == "table" and v.Value or v
-    end
+    Callback = function(v) _G.WASDFlySpeed = typeof(v) == "table" and v.Value or v end
 })
 
 _G.InfJump = false
 MoveTab:Toggle({
     Title = "Infinite Jump",
-    Desc = "Jump continuously in the air",
     Value = false,
     Callback = function(v) _G.InfJump = v end
 })
@@ -135,7 +163,6 @@ end)
 _G.Noclip = false
 MoveTab:Toggle({
     Title = "Noclip",
-    Desc = "Walk directly through walls and objects",
     Value = false,
     Callback = function(v) _G.Noclip = v end
 })
@@ -143,23 +170,35 @@ MoveTab:Toggle({
 RunService.Stepped:Connect(function()
     if _G.Noclip and LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
+            if part:IsA("BasePart") then part.CanCollide = false end
         end
     end
 end)
 
--- ==================== 2. VISUALS & COMBAT ====================
-local VisualsTab = Window:Tab({
-    Title = "Visuals / Combat",
-    Icon = "eye"
+MoveTab:Button({
+    Title = "Get Click TP Tool",
+    Desc = "Gives item to teleport anywhere on click",
+    Callback = function()
+        local tpTool = Instance.new("Tool")
+        tpTool.Name = "TP Tool"
+        tpTool.RequiresHandle = false
+        tpTool.Activated:Connect(function()
+            local mouse = LocalPlayer:GetMouse()
+            if mouse.Hit and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end)
+        tpTool.Parent = LocalPlayer.Backpack
+        WindUI:Notify({ Title = "TP Tool Granted!", Content = "Equip the tool and click to teleport :)", Duration = 3 })
+    end
 })
+
+-- ==================== 2. VISUALS & WORLD ====================
+local VisualsTab = Window:Tab({ Title = "Visuals / World", Icon = "eye" })
 
 _G.ESP = false
 VisualsTab:Toggle({
     Title = "ESP (Player Highlight)",
-    Desc = "Highlight all players through walls",
     Value = false,
     Callback = function(v)
         _G.ESP = v
@@ -172,175 +211,319 @@ VisualsTab:Toggle({
                         hl.OutlineColor = Color3.fromRGB(255, 255, 255)
                     end
                 else
-                    if p.Character:FindFirstChild("Highlight") then
-                        p.Character.Highlight:Destroy()
-                    end
+                    if p.Character:FindFirstChild("Highlight") then p.Character.Highlight:Destroy() end
                 end
             end
         end
     end
-})
-
-_G.HitboxSize = 10
-_G.HitboxToggle = false
-
-VisualsTab:Toggle({
-    Title = "Expand Hitboxes",
-    Desc = "Enlarge player RootParts for easier targeting",
-    Value = false,
-    Callback = function(v) _G.HitboxToggle = v end
 })
 
 VisualsTab:Slider({
-    Title = "Hitbox Size",
-    Desc = "Range up to 1000",
-    Value = { Min = 2, Max = 1000, Default = 10 },
+    Title = "Time Of Day",
+    Desc = "Change environment time (0 - 24)",
+    Value = { Min = 0, Max = 24, Default = 12 },
     Callback = function(v)
-        _G.HitboxSize = typeof(v) == "table" and v.Value or v
+        local val = typeof(v) == "table" and v.Value or v
+        Lighting.ClockTime = val
     end
 })
 
-RunService.RenderStepped:Connect(function()
-    if _G.HitboxToggle then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local hrp = p.Character.HumanoidRootPart
-                hrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
-                hrp.Transparency = 0.7
-                hrp.BrickColor = BrickColor.new("Really red")
-                hrp.Material = Enum.Material.Neon
-                hrp.CanCollide = false
-            end
+VisualsTab:Dropdown({
+    Title = "Custom Skybox",
+    Values = {"Default", "Purple Nebula", "Space", "Neat Neon"},
+    Value = "Default",
+    Callback = function(option)
+        local choice = type(option) == "table" and option[1] or option
+        local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
+        if choice == "Purple Nebula" then
+            sky.SkyboxBk = "rbxassetid://159454299"
+            sky.SkyboxDn = "rbxassetid://159454296"
+            sky.SkyboxFt = "rbxassetid://159454293"
+            sky.SkyboxLf = "rbxassetid://159454298"
+            sky.SkyboxRt = "rbxassetid://159454300"
+            sky.SkyboxUp = "rbxassetid://159454288"
+        elseif choice == "Space" then
+            sky.SkyboxBk = "rbxassetid://260384779"
+            sky.SkyboxDn = "rbxassetid://260384807"
+            sky.SkyboxFt = "rbxassetid://260384833"
+            sky.SkyboxLf = "rbxassetid://260384859"
+            sky.SkyboxRt = "rbxassetid://260384883"
+            sky.SkyboxUp = "rbxassetid://260384909"
+        elseif choice == "Neat Neon" then
+            sky.SkyboxBk = "rbxassetid://12064107"
+            sky.SkyboxDn = "rbxassetid://12064152"
+            sky.SkyboxFt = "rbxassetid://12064121"
+            sky.SkyboxLf = "rbxassetid://12064131"
+            sky.SkyboxRt = "rbxassetid://12064115"
+            sky.SkyboxUp = "rbxassetid://12064141"
         end
     end
-end)
+})
 
-_G.Freecam = false
-local origCamType = workspace.CurrentCamera.CameraType
-
-VisualsTab:Toggle({
-    Title = "Freecam",
-    Desc = "Detach camera to fly freely across the map",
-    Value = false,
+VisualsTab:Slider({
+    Title = "FOV Changer",
+    Desc = "Field of View (Default 70)",
+    Value = { Min = 30, Max = 120, Default = 70 },
     Callback = function(v)
-        _G.Freecam = v
+        local val = typeof(v) == "table" and v.Value or v
+        workspace.CurrentCamera.FieldOfView = val
+    end
+})
+
+VisualsTab:Slider({
+    Title = "Screen Stretch (Resolution)",
+    Desc = "Compress / stretch camera view",
+    Value = { Min = 50, Max = 100, Default = 100 },
+    Callback = function(v)
+        local val = typeof(v) == "table" and v.Value or v
         local cam = workspace.CurrentCamera
-        if _G.Freecam then
-            origCamType = cam.CameraType
-            cam.CameraType = Enum.CameraType.Scriptable
-            task.spawn(function()
-                while _G.Freecam do
-                    local moveVec = Vector3.zero
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec = moveVec + cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec = moveVec - cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec = moveVec - cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec = moveVec + cam.CFrame.RightVector end
-                    cam.CFrame = cam.CFrame + (moveVec * 2)
-                    task.wait()
-                end
-            end)
-        else
-            cam.CameraType = Enum.CameraType.Custom
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                cam.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            end
-        end
+        cam.ViewportSize = Vector2.new(cam.ViewportSize.X * (val / 100), cam.ViewportSize.Y)
     end
 })
 
-VisualsTab:Button({
-    Title = "Enable Fullbright",
-    Desc = "Remove darkness and ambient shadows",
+-- ==================== 3. UTILITIES & SERVER HOP ====================
+local UtilTab = Window:Tab({ Title = "Utilities / Hop", Icon = "server" })
+
+local SelectedHopFilter = "Lowest Ping"
+
+UtilTab:Dropdown({
+    Title = "Server Hop Filter",
+    Values = {"Lowest Ping", "Highest Ping", "Lowest Players", "Highest Players"},
+    Value = "Lowest Ping",
+    Callback = function(opt)
+        SelectedHopFilter = type(opt) == "table" and opt[1] or opt
+    end
+})
+
+UtilTab:Button({
+    Title = "Execute Server Hop",
+    Desc = "Search server based on selected filter",
     Callback = function()
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        Lighting.Brightness = 2
-        Lighting.FogEnd = 1e10
-    end
-})
+        WindUI:Notify({ Title = "Searching...", Content = "Filtering servers, please wait...", Duration = 3 })
+        local api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100"
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(api))
+        end)
 
--- ==================== 3. UTILITIES & CHAT ====================
-local UtilTab = Window:Tab({
-    Title = "Utilities / Chat",
-    Icon = "message-square"
-})
-
-local SpamText = "Universal Hub on Top!"
-local SpamCount = 5
-local IsSpamming = false
-
-UtilTab:Input({
-    Title = "Message Text",
-    Desc = "Text to send in chat",
-    Value = "Universal Hub on Top!",
-    Placeholder = "Enter text...",
-    Callback = function(txt) SpamText = txt end
-})
-
-UtilTab:Input({
-    Title = "Repeat Count",
-    Desc = "Amount of messages to send",
-    Value = "5",
-    Placeholder = "5",
-    Callback = function(val) SpamCount = tonumber(val) or 5 end
-})
-
-local function SendChatMessage(msg)
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        local generalChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-        if generalChannel then generalChannel:SendAsync(msg) end
-    else
-        local sayEvent = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
-        if sayEvent then sayEvent:FireServer(msg, "All") end
-    end
-end
-
-UtilTab:Toggle({
-    Title = "Start Chat Spam",
-    Desc = "Spam configured message in global chat",
-    Value = false,
-    Callback = function(v)
-        IsSpamming = v
-        if IsSpamming then
-            task.spawn(function()
-                for i = 1, SpamCount do
-                    if not IsSpamming then break end
-                    SendChatMessage(SpamText)
-                    task.wait(1)
+        if success and result and result.data then
+            local servers = {}
+            for _, s in ipairs(result.data) do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    table.insert(servers, s)
                 end
-            end)
+            end
+
+            if SelectedHopFilter == "Lowest Players" then
+                table.sort(servers, function(a, b) return a.playing < b.playing end)
+            elseif SelectedHopFilter == "Highest Players" then
+                table.sort(servers, function(a, b) return a.playing > b.playing end)
+            elseif SelectedHopFilter == "Lowest Ping" then
+                table.sort(servers, function(a, b) return (a.ping or 999) < (b.ping or 999) end)
+            elseif SelectedHopFilter == "Highest Ping" then
+                table.sort(servers, function(a, b) return (a.ping or 0) > (b.ping or 0) end)
+            end
+
+            if #servers > 0 then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[1].id, LocalPlayer)
+            else
+                WindUI:Notify({ Title = "Error", Content = "No matching servers found :)", Duration = 3 })
+            end
         end
     end
 })
 
 UtilTab:Button({
-    Title = "Rejoin Server",
-    Desc = "Reconnect to the current server instance",
+    Title = "FPS Booster",
+    Desc = "Removes textures and visual effects for smooth FPS",
     Callback = function()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.Material = Enum.Material.SmoothPlastic
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                obj:Destroy()
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                obj.Enabled = false
+            end
+        end
+        Lighting.GlobalShadows = false
+        WindUI:Notify({ Title = "FPS Boosted!", Content = "Textures & Shadows reduced :)", Duration = 3 })
+    end
+})
+-- ==================== 4. ATTACH & INVISIBILITY ====================
+local AttachTab = Window:Tab({ Title = "Attach / Stealth", Icon = "user-x" })
+
+_G.RealInvisible = false
+local CamPart = nil
+local SpectatorCam = workspace.CurrentCamera
+local SpectatorConnection = nil
+
+AttachTab:Toggle({
+    Title = "Real Invisibility (FE Ghost)",
+    Desc = "Spectator Freecam: hides body underground and lets you fly freely",
+    Value = false,
+    Callback = function(v)
+        _G.RealInvisible = v
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = char.HumanoidRootPart
+
+        if _G.RealInvisible then
+            -- 1. Визуальная полупрозрачность для себя
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0.6
+                    part.CanCollide = false
+                elseif part:IsA("Decal") or part:IsA("Texture") then
+                    part.Transparency = 0.6
+                end
+            end
+
+            -- 2. Создаем незаметную точку наблюдения для стандартной камеры
+            CamPart = Instance.new("Part")
+            CamPart.Name = "GhostCamFocus"
+            CamPart.Size = Vector3.new(0.2, 0.2, 0.2)
+            CamPart.Transparency = 1
+            CamPart.CanCollide = false
+            CamPart.Anchored = true
+            CamPart.CFrame = SpectatorCam.CFrame
+            CamPart.Parent = workspace
+
+            -- Переключаем фокус стандартной камеры на наш блок
+            SpectatorCam.CameraSubject = CamPart
+
+            -- 3. Уводим тело под карту для сервера
+            task.spawn(function()
+                while _G.RealInvisible and char and char:FindFirstChild("HumanoidRootPart") do
+                    hrp.CFrame = CFrame.new(CamPart.Position.X, -2000, CamPart.Position.Z)
+                    task.wait(0.05)
+                end
+            end)
+
+            -- 4. Управление полётом (WASD + Q/E)
+            SpectatorConnection = RunService.RenderStepped:Connect(function()
+                if not _G.RealInvisible or not CamPart then return end
+
+                local moveVector = Vector3.new()
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Vector3.new(0, 0, -1) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector + Vector3.new(0, 0, 1) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector + Vector3.new(-1, 0, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Vector3.new(1, 0, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveVector = moveVector + Vector3.new(0, 1, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveVector = moveVector + Vector3.new(0, -1, 0) end
+
+                local speedMultiplier = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and 250 or 100
+                local camCFrame = SpectatorCam.CFrame
+                
+                -- Двигаем виртуальную точку слежения
+                CamPart.CFrame = CamPart.CFrame + (camCFrame:VectorToWorldSpace(moveVector) * (speedMultiplier * task.wait()))
+            end)
+
+            WindUI:Notify({ Title = "Invisibility Active!", Content = "Standard camera rotation working! :)", Duration = 4 })
+        else
+            -- 5. Возврат в нормальный режим
+            if SpectatorConnection then SpectatorConnection:Disconnect() SpectatorConnection = nil end
+
+            if char:FindFirstChildOfClass("Humanoid") then
+                SpectatorCam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+            end
+
+            -- Телепортируем игрока туда, где остановился полёт
+            if CamPart then
+                hrp.CFrame = CFrame.new(CamPart.Position + Vector3.new(0, 3, 0))
+                CamPart:Destroy()
+                CamPart = nil
+            end
+
+            -- Возвращаем видимость
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
+                    part.CanCollide = true
+                elseif part:IsA("Decal") or part:IsA("Texture") then
+                    part.Transparency = 0
+                end
+            end
+
+            WindUI:Notify({ Title = "Invisibility Disabled!", Content = "Returned to character :)", Duration = 3 })
+        end
     end
 })
 
--- ==================== 4. COMBAT (TRIGGERBOT) ====================
-local CombatTab = Window:Tab({
-    Title = "Combat",
-    Icon = "crosshair"
+local TargetPlayerName = ""
+_G.AttachLoop = false
+_G.OrbitMode = false
+
+AttachTab:Input({
+    Title = "Target Player Name",
+    Placeholder = "Enter partial username...",
+    Callback = function(txt) 
+        TargetPlayerName = txt 
+    end
 })
+
+local function GetTargetPlayer()
+    if TargetPlayerName == "" then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and (p.Name:lower():find(TargetPlayerName:lower(), 1, true) or p.DisplayName:lower():find(TargetPlayerName:lower(), 1, true)) then
+            return p
+        end
+    end
+    return nil
+end
+
+AttachTab:Toggle({
+    Title = "Attach To Target",
+    Value = false,
+    Callback = function(v)
+        _G.AttachLoop = v
+        task.spawn(function()
+            while _G.AttachLoop do
+                local target = GetTargetPlayer()
+                local myChar = LocalPlayer.Character
+                if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                end
+                task.wait()
+            end
+        end)
+    end
+})
+
+AttachTab:Toggle({
+    Title = "Orbit Around Target",
+    Value = false,
+    Callback = function(v)
+        _G.OrbitMode = v
+        local angle = 0
+        task.spawn(function()
+            while _G.OrbitMode do
+                local target = GetTargetPlayer()
+                local myChar = LocalPlayer.Character
+                if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    angle = angle + 0.08
+                    local targetPos = target.Character.HumanoidRootPart.Position
+                    local offset = Vector3.new(math.cos(angle) * 6, 2, math.sin(angle) * 6)
+                    myChar.HumanoidRootPart.CFrame = CFrame.new(targetPos + offset, targetPos)
+                end
+                task.wait()
+            end
+        end)
+    end
+})
+-- ==================== 5. COMBAT & KILLFEED ====================
+local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 
 _G.Triggerbot = false
 _G.TriggerKey = "MB1"
 
 CombatTab:Toggle({
     Title = "Triggerbot (Auto-Attack)",
-    Desc = "Automatically click/press key when aiming at a target",
     Value = false,
     Callback = function(v) _G.Triggerbot = v end
 })
 
 CombatTab:Dropdown({
     Title = "Auto-Click Key",
-    Desc = "Key or mouse button to trigger",
     Values = {"MB1 (LMB)", "MB2 (RMB)", "E", "Q", "F", "R", "Space"},
     Value = "MB1 (LMB)",
     Callback = function(Option)
@@ -350,30 +533,13 @@ CombatTab:Dropdown({
 
 local function TriggerAction()
     local key = _G.TriggerKey
-    if key == "MB1 (LMB)" or key == "MB1" then
-        mouse1click()
-    elseif key == "MB2 (RMB)" then
-        mouse2click()
-    elseif key == "E" then
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    if key == "MB1 (LMB)" or key == "MB1" then mouse1click()
+    elseif key == "MB2 (RMB)" then mouse2click()
+    elseif key == "E" or key == "Q" or key == "F" or key == "R" or key == "Space" then
+        local k = Enum.KeyCode[key]
+        VirtualInputManager:SendKeyEvent(true, k, false, game)
         task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-    elseif key == "Q" then
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-    elseif key == "F" then
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-    elseif key == "R" then
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-    elseif key == "Space" then
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        task.wait(0.05)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        VirtualInputManager:SendKeyEvent(false, k, false, game)
     end
 end
 
@@ -391,211 +557,8 @@ task.spawn(function()
     end
 end)
 
--- ==================== 5. KILLFEED & CHAT SPAM ====================
-local KillfeedTab = Window:Tab({
-    Title = "Killfeed",
-    Icon = "swords"
-})
-
-_G.KillfeedEnabled = true
-_G.ChatAnnounce = true
-_G.CustomKillText = "im noob lol"
-_G.DisplayTime = 4.5
-
-local function GetContainer()
-    local sg = LocalPlayer.PlayerGui:FindFirstChild("FunnyKillfeedGui")
-    if not sg then
-        sg = Instance.new("ScreenGui")
-        sg.Name = "FunnyKillfeedGui"
-        sg.ResetOnSpawn = false
-        sg.Parent = LocalPlayer.PlayerGui
-
-        local frame = Instance.new("Frame")
-        frame.Name = "Container"
-        frame.Size = UDim2.new(0, 500, 0, 400)
-        frame.Position = UDim2.new(0.5, -250, 0.12, 0)
-        frame.BackgroundTransparency = 1
-        frame.Parent = sg
-
-        local layout = Instance.new("UIListLayout")
-        layout.SortOrder = Enum.SortOrder.LayoutOrder
-        layout.Padding = UDim.new(0, 6)
-        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        layout.Parent = frame
-    end
-    return sg.Container
-end
-
-local function OnKillEvent(killerName, victimName)
-    if not _G.KillfeedEnabled then return end
-
-    local container = GetContainer()
-    local banner = Instance.new("Frame")
-    banner.Size = UDim2.new(1, 0, 0, 32)
-    banner.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    banner.BackgroundTransparency = 0.25
-    banner.BorderSizePixel = 0
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = banner
-
-    local txt = Instance.new("TextLabel")
-    txt.Size = UDim2.new(1, -10, 1, 0)
-    txt.Position = UDim2.new(0, 5, 0, 0)
-    txt.BackgroundTransparency = 1
-    txt.Font = Enum.Font.SourceSansBold
-    txt.TextSize = 21
-    txt.TextColor3 = Color3.fromRGB(230, 225, 80)
-    txt.TextStrokeTransparency = 0.5
-    txt.Text = killerName .. " killed " .. victimName .. " (" .. _G.CustomKillText .. ")"
-    txt.Parent = banner
-
-    banner.Parent = container
-
-    TweenService:Create(banner, TweenInfo.new(0.3), {BackgroundTransparency = 0.25}):Play()
-    TweenService:Create(txt, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
-
-    task.delay(_G.DisplayTime, function()
-        if banner and banner.Parent then
-            local f1 = TweenService:Create(banner, TweenInfo.new(0.5), {BackgroundTransparency = 1})
-            local f2 = TweenService:Create(txt, TweenInfo.new(0.5), {TextTransparency = 1})
-            f1:Play() f2:Play()
-            f1.Completed:Connect(function() banner:Destroy() end)
-        end
-    end)
-
-    if _G.ChatAnnounce then
-        SendChatMessage(victimName .. " got eliminated! (" .. _G.CustomKillText .. ")")
-    end
-end
-
-local function HookPlayer(p)
-    local function OnCharacter(char)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if hum then
-            hum.Died:Connect(function()
-                local creator = hum:FindFirstChild("creator")
-                local killerName = "Someone"
-                if creator and creator.Value and creator.Value:IsA("Player") then
-                    killerName = creator.Value.Name
-                elseif p == LocalPlayer then
-                    killerName = LocalPlayer.Name
-                end
-                OnKillEvent(killerName, p.Name)
-            end)
-        end
-    end
-    if p.Character then OnCharacter(p.Character) end
-    p.CharacterAdded:Connect(OnCharacter)
-end
-
-for _, p in pairs(Players:GetPlayers()) do HookPlayer(p) end
-Players.PlayerAdded:Connect(HookPlayer)
-
-KillfeedTab:Toggle({
-    Title = "Enable Killfeed",
-    Desc = "Display kill notifications on screen",
-    Value = true,
-    Callback = function(v) _G.KillfeedEnabled = v end
-})
-
-KillfeedTab:Toggle({
-    Title = "Announce in Global Chat",
-    Desc = "Broadcast kill notifications to global chat",
-    Value = true,
-    Callback = function(v) _G.ChatAnnounce = v end
-})
-
-KillfeedTab:Input({
-    Title = "Text in Brackets",
-    Desc = "Custom message added to kill notifications",
-    Value = "im noob lol",
-    Placeholder = "Enter text...",
-    Callback = function(txt)
-        if txt ~= "" then _G.CustomKillText = txt end
-    end
-})
-
-KillfeedTab:Button({
-    Title = "Test Push Banner",
-    Desc = "Trigger a dummy kill notification",
-    Callback = function()
-        OnKillEvent(LocalPlayer.Name, "Noobie")
-    end
-})
-
--- ==================== 6. MISC ====================
-local MiscTab = Window:Tab({
-    Title = "Misc",
-    Icon = "wrench"
-})
-
-_G.YeetPower = 500
-
-MiscTab:Slider({
-    Title = "Launch Power",
-    Desc = "Force applied when launching players",
-    Value = { Min = 100, Max = 5000, Default = 500 },
-    Callback = function(v)
-        _G.YeetPower = typeof(v) == "table" and v.Value or v
-    end
-})
-
-MiscTab:Button({
-    Title = "Get Yeet Gun (Launcher)",
-    Desc = "Gives a tool that launches players you click on",
-    Callback = function()
-        local tool = Instance.new("Tool")
-        tool.Name = "Yeet Launcher"
-        tool.RequiresHandle = true
-        
-        local handle = Instance.new("Part")
-        handle.Name = "Handle"
-        handle.Size = Vector3.new(1, 1, 4)
-        handle.BrickColor = BrickColor.new("Really red")
-        handle.Material = Enum.Material.Neon
-        handle.Parent = tool
-        
-        tool.Activated:Connect(function()
-            local mouse = LocalPlayer:GetMouse()
-            if mouse.Target and mouse.Target.Parent then
-                local targetChar = mouse.Target.Parent
-                if targetChar:IsA("Accessory") or targetChar:IsA("Model") then
-                    if not targetChar:FindFirstChildOfClass("Humanoid") and targetChar.Parent then
-                        targetChar = targetChar.Parent
-                    end
-                end
-
-                local hrp = targetChar:FindFirstChild("HumanoidRootPart") or targetChar:FindFirstChild("Torso")
-                
-                if hrp and targetChar ~= LocalPlayer.Character then
-                    local bv = Instance.new("BodyVelocity")
-                    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                    
-                    local launchDirection = (mouse.Hit.LookVector + Vector3.new(0, 1.5, 0)).Unit
-                    bv.Velocity = launchDirection * _G.YeetPower
-                    bv.Parent = hrp
-                    
-                    task.delay(0.3, function()
-                        bv:Destroy()
-                    end)
-                end
-            end
-        end)
-        
-        tool.Parent = LocalPlayer.Backpack
-        
-        WindUI:Notify({
-            Title = "Weapon Granted!",
-            Content = "Yeet Launcher added to your backpack :)",
-            Duration = 3
-        })
-    end
-})
-
 WindUI:Notify({
-    Title = "Super-Hub v2.0 Ready!",
-    Content = "All modules loaded successfully with WindUI :)",
+    Title = "Super-Hub v3.0 Loaded!",
+    Content = "All new features are ready to use :)",
     Duration = 5
 })
